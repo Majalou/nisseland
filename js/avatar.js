@@ -148,11 +148,20 @@ const Avatar = (() => {
     const must = look.mustache ? `<path d="M50 62 Q55 57 60 61 Q65 57 70 62 Q65 64 60 62.5 Q55 64 50 62Z" fill="${look.mustache}"/>` : '';
     const goggles = look.goggles ? `<g><rect x="38" y="35" width="44" height="4" fill="#5a3a20"/><circle cx="50" cy="37" r="6.5" fill="#9fe3ff" stroke="#b8862e" stroke-width="2.4"/><circle cx="70" cy="37" r="6.5" fill="#9fe3ff" stroke="#b8862e" stroke-width="2.4"/><circle cx="48" cy="35" r="1.6" fill="#fff"/><circle cx="68" cy="35" r="1.6" fill="#fff"/></g>` : '';
     const mitten = look.mittens || hatIt.color || look.hatColor || '#c8102e';
-    const head = `<path d="${headPath(look)}" fill="${skin}"/>
+    // With a photo the child's own (drawn) face sits on the head; the cropper's oval maps onto it
+    const photo = look.photo, pid = photo ? 'ph' + (++maskN) : '';
+    const head = photo ? `<defs><clipPath id="${pid}"><ellipse cx="60" cy="57" rx="24" ry="25.5"/></clipPath>
+      <radialGradient id="${pid}r"><stop offset=".78" stop-color="${skin}" stop-opacity="0"/><stop offset="1" stop-color="${skin}" stop-opacity=".85"/></radialGradient></defs>
+      <ellipse cx="60" cy="57" rx="24" ry="25.5" fill="${skin}"/>
+      <image href="${photo}" x="18.3" y="17.3" width="83.4" height="83.4" preserveAspectRatio="none" clip-path="url(#${pid})"/>
+      <ellipse cx="60" cy="57" rx="24" ry="25.5" fill="url(#${pid}r)"/>
+      <ellipse cx="60" cy="57" rx="24" ry="25.5" fill="none" stroke="${shade(skin, -0.3)}" stroke-width="1.1"/>
+      ${look.glasses ? `<g transform="translate(60 54) scale(1.11 1) translate(-60 -52)">${glassesSvg(look)}</g>` : ''}${beard}${must}`
+      : `<path d="${headPath(look)}" fill="${skin}"/>
       <path d="M60 29 A23 23 0 0 1 83 52 A23 23 0 0 1 72 72 Q80 56 60 29Z" fill="#000" opacity=".06"/>
       ${hairFront(look)}
       ${face(look, expr)}${beard}${must}`;
-    const earDx = ((look.face && look.face.rx) || 23) - 23;
+    const earDx = photo ? 2 : ((look.face && look.face.rx) || 23) - 23;
     return `<g class="av ${opts.walking ? 'walk' : ''}">
       <ellipse cx="60" cy="151" rx="25" ry="5" fill="#000" opacity=".22"/>
       <g class="bob">
@@ -178,7 +187,7 @@ const Avatar = (() => {
       </g></g>`;
   }
   function svg(look, equip, opts = {}) {
-    const vb = opts.portrait ? '16 -12 88 88' : '0 -18 120 174';
+    const vb = opts.portrait ? (look.photo ? '16 -10 88 93' : '16 -12 88 88') : '0 -18 120 174';
     return `<svg class="avsvg ${opts.portrait ? 'por' : ''} ${opts.cls || ''}" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg">${g(look, equip, opts)}</svg>`;
   }
 
@@ -414,6 +423,33 @@ const Avatar = (() => {
     return { eyes, brow, browRGB, lips };
   }
 
+  // A drawn-looking copy of the face: softened, fewer colours and dark outlines. Only this small picture is kept.
+  function cartoon(img, crop) {
+    const S = 160, src = [crop.cx - crop.size / 2, crop.cy - crop.size / 2, crop.size, crop.size];
+    const layer = n => { const c = document.createElement('canvas'); c.width = c.height = n; const x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingQuality = 'high'; return [c, x]; };
+    const [small, sx] = layer(84); sx.drawImage(img, ...src, 0, 0, 84, 84);
+    const [mid, mx] = layer(100); mx.drawImage(img, ...src, 0, 0, 100, 100);
+    const [out, ox] = layer(S); ox.drawImage(small, 0, 0, S, S);
+    const [ed, ex] = layer(S); ex.drawImage(mid, 0, 0, S, S);
+    const im = ox.getImageData(0, 0, S, S), p = im.data, e = ex.getImageData(0, 0, S, S).data;
+    const L = new Float32Array(S * S);
+    for (let i = 0; i < S * S; i++) L[i] = e[i * 4] * 0.3 + e[i * 4 + 1] * 0.59 + e[i * 4 + 2] * 0.11;
+    const step = 16;
+    for (let y = 1; y < S - 1; y++) for (let x = 1; x < S - 1; x++) {
+      const i = y * S + x, a = q => L[q];
+      const gx = a(i - S + 1) + 2 * a(i + 1) + a(i + S + 1) - a(i - S - 1) - 2 * a(i - 1) - a(i + S - 1);
+      const gy = a(i + S - 1) + 2 * a(i + S) + a(i + S + 1) - a(i - S - 1) - 2 * a(i - S) - a(i - S + 1);
+      const mag = Math.hypot(gx, gy), ink = mag > 190 ? 0.6 : mag > 130 ? 0.82 : 1;
+      const k = i * 4, gr = (p[k] + p[k + 1] + p[k + 2]) / 3;
+      for (let c = 0; c < 3; c++) {
+        const v = gr + (p[k + c] - gr) * 1.15 + 6;
+        p[k + c] = Math.max(0, Math.min(255, Math.round(v / step) * step * ink));
+      }
+    }
+    ox.putImageData(im, 0, 0);
+    return out.toDataURL('image/jpeg', 0.85);
+  }
+
   // Faste figurer genbruger samme tegnestil, så alt ser ens ud.
   const NPC = {
     sofus: { look: { skin: '#f3c9a8', hair: '#8a4f24', style: 'short', eyes: '#2f6db0', clothes: '#8e1027', hatColor: '#c8102e' }, equip: { hat: { style: 'nisse', color: '#c8102e' }, neck: { style: 'amulet', color: '#ffd36b' } } },
@@ -423,6 +459,6 @@ const Avatar = (() => {
     slikkonge: { look: { skin: '#fbe0cc', hair: '#ff9ad5', style: 'curly', eyes: '#5a3a22', clothes: '#d94f8c', hatColor: '#ffd36b', mustache: '#ff9ad5' }, equip: { hat: { style: 'crown', color: '#ffd36b', trim: '#ff5f8f' }, cape: { style: 'cape', color: '#ffb3d1', trim: '#fff' } } }
   };
 
-  return { g, svg, shade, loadImage, analyze, NPC, SKINS, HAIRS, EYES, HATS, CLOTHES, STYLES, RED, RED_CLOTHES,
+  return { g, svg, shade, loadImage, analyze, cartoon, NPC, SKINS, HAIRS, EYES, HATS, CLOTHES, STYLES, RED, RED_CLOTHES,
     parts: { hat: it => hat({ hatColor: '#c8102e' }, it), hand: handItem, neck: neckItem } };
 })();

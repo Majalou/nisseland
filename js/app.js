@@ -125,7 +125,7 @@ const App = (() => {
       <div class="pcards">${ps.map(p => `<button class="pcard" data-id="${p.id}">${Avatar.svg(p.look, p.equip, { cls: 'pav' })}
         <b>${esc(p.nisseName)}</b><small>${TaskBank.LEVELS[p.level]} · 📜 ${Object.keys(p.seen).length}/24</small></button>`).join('')}
         <button class="pcard add" id="addP"><span class="plus">＋</span><b>Ny julehjælper</b><small>Lav dit nissepas</small></button></div>
-      <div class="pfoot"><button class="btn ghost small" id="parentBtn">👪 Forældre</button><button class="btn ghost small" id="musicBtn">${Store.db.settings.bgMusic !== false ? '🎵 Musik: til' : '🎵 Musik: fra'}</button><small class="ver">version 15</small></div>
+      <div class="pfoot"><button class="btn ghost small" id="parentBtn">👪 Forældre</button><button class="btn ghost small" id="musicBtn">${Store.db.settings.bgMusic !== false ? '🎵 Musik: til' : '🎵 Musik: fra'}</button><small class="ver">version 16</small></div>
       ${installHint()}</div>`;
     $$('.pcard[data-id]').forEach(b => b.onclick = () => { Sfx.unlock(); Sfx.chime(); select(b.dataset.id); });
     $('#addP').onclick = () => { Sfx.unlock(); create(); };

@@ -1,4 +1,4 @@
-const CACHE = 'nisseland-v15';
+const CACHE = 'nisseland-v16';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/audio.js', 'js/store.js', 'js/story.js', 'js/taskbank.js', 'js/tasks.js',
   'js/avatar.js', 'js/art.js', 'js/room3d.js', 'js/world.js', 'js/app.js'];
